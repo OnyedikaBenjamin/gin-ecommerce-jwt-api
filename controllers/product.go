@@ -8,17 +8,14 @@ import (
 	"gorm.io/gorm"
 )
 
-// CreateProduct allows admins to create new products
 func CreateProduct(c *gin.Context, db *gorm.DB) {
 	var product models.Product
 	validator := utils.NewValidator()
 
-	// Validate request data
 	if !validator.ValidateRequest(c, &product) {
 		return
 	}
 
-	// Save product to the database
 	if err := db.Create(&product).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not create product"})
 		return
@@ -27,7 +24,6 @@ func CreateProduct(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusCreated, gin.H{"message": "Product created successfully"})
 }
 
-// GetProducts retrieves all products from the database
 func GetProducts(c *gin.Context, db *gorm.DB) {
 	var products []models.Product
 	if err := db.Find(&products).Error; err != nil {
@@ -37,7 +33,6 @@ func GetProducts(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, products)
 }
 
-// UpdateProduct updates an existing product in the database
 func UpdateProduct(c *gin.Context, db *gorm.DB) {
 	var product models.Product
 	id := c.Param("id")
@@ -53,7 +48,6 @@ func UpdateProduct(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusOK, product)
 }
 
-// DeleteProduct deletes a product from the database
 func DeleteProduct(c *gin.Context, db *gorm.DB) {
 	id := c.Param("id")
 	if err := db.Delete(&models.Product{}, id).Error; err != nil {

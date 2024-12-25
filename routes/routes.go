@@ -10,46 +10,41 @@ import (
 func SetupRouter(db *gorm.DB) *gin.Engine {
 	r := gin.Default()
 
-	// Public routes
 	r.POST("/register", func(c *gin.Context) {
-		controllers.Register(c, db)  // Pass db to controller
+		controllers.Register(c, db) 
 	})
 	r.POST("/login", func(c *gin.Context) {
-		controllers.Login(c, db)  // Pass db to controller
+		controllers.Login(c, db) 
 	})
 
-	// Authenticated routes
 	authorized := r.Group("/auth")
-	authorized.Use(utils.AuthMiddleware(db))  // Pass db to AuthMiddleware
+	authorized.Use(utils.AuthMiddleware(db)) 
 	{
-		// Product routes (admin only)
-		authorized.POST("/create-product", func(c *gin.Context) {
-			controllers.CreateProduct(c, db)  // Pass db to controller
+		authorized.POST("/create-product", utils.IsAdminMiddleware(), func(c *gin.Context) {
+			controllers.CreateProduct(c, db)
+		})		
+		authorized.GET("/products", utils.IsAdminMiddleware(), func(c *gin.Context) {
+			controllers.GetProducts(c, db)
 		})
-		authorized.GET("/products", func(c *gin.Context) {
-			controllers.GetProducts(c, db)  // Pass db to controller
+		authorized.PUT("/product/:id", utils.IsAdminMiddleware(), func(c *gin.Context) {
+			controllers.UpdateProduct(c, db) 
 		})
-		authorized.PUT("/product/:id", func(c *gin.Context) {
-			controllers.UpdateProduct(c, db)  // Pass db to controller
-		})
-		authorized.DELETE("/product/:id", func(c *gin.Context) {
-			controllers.DeleteProduct(c, db)  // Pass db to controller
+		authorized.DELETE("/product/:id", utils.IsAdminMiddleware(), func(c *gin.Context) {
+			controllers.DeleteProduct(c, db)  
 		})
 
-		// Order routes
 		authorized.POST("/place-order", func(c *gin.Context) {
-			controllers.PlaceOrder(c, db)  // Pass db to controller
+			controllers.PlaceOrder(c, db) 
 		})
 		authorized.GET("/orders", func(c *gin.Context) {
-			controllers.ListOrders(c, db)  // Pass db to controller
+			controllers.ListOrders(c, db) 
 		})
 		authorized.PUT("/order/:id/cancel", func(c *gin.Context) {
-			controllers.CancelOrder(c, db)  // Pass db to controller
+			controllers.CancelOrder(c, db) 
 		})
 
-		// Admin-only order status update
-		authorized.PUT("/order/:id/status", func(c *gin.Context) {
-			controllers.UpdateOrderStatus(c, db)  // Pass db to controller
+		authorized.PUT("/order/:id/status", utils.IsAdminMiddleware(), func(c *gin.Context) {
+			controllers.UpdateOrderStatus(c, db) 
 		})
 	}
 

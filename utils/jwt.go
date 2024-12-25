@@ -2,16 +2,16 @@ package utils
 
 import (
     "github.com/dgrijalva/jwt-go"
-    "time"
-    "ecommerce-api/models"
+    "github.com/gin-gonic/gin"
     "gorm.io/gorm"
     "net/http"
-    "github.com/gin-gonic/gin"
+    "strings"
+    "time"
+    "ecommerce-api/models"
 )
 
-var jwtSecret = []byte("your-secret-key")
+var jwtSecret = []byte("secret-key") 
 
-// GenerateToken generates a JWT token for a given user ID and role
 func GenerateToken(userId uint, role string) (string, error) {
     claims := jwt.MapClaims{
         "user_id": userId,
@@ -22,18 +22,23 @@ func GenerateToken(userId uint, role string) (string, error) {
     return token.SignedString(jwtSecret)
 }
 
-// ParseToken parses the JWT token and returns the claims
 func ParseToken(tokenStr string) (jwt.MapClaims, error) {
     token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+        if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+            return nil, jwt.NewValidationError("unexpected signing method", jwt.ValidationErrorSignatureInvalid)
+        }
         return jwtSecret, nil
     })
     if err != nil || !token.Valid {
         return nil, err
     }
-    return token.Claims.(jwt.MapClaims), nil
+    claims, ok := token.Claims.(jwt.MapClaims)
+    if !ok {
+        return nil, jwt.NewValidationError("invalid claims format", jwt.ValidationErrorClaimsInvalid)
+    }
+    return claims, nil
 }
 
-// AuthMiddleware is a Gin middleware for validating JWT tokens
 func AuthMiddleware(db *gorm.DB) gin.HandlerFunc {
     return func(c *gin.Context) {
         token := c.GetHeader("Authorization")
@@ -43,6 +48,14 @@ func AuthMiddleware(db *gorm.DB) gin.HandlerFunc {
             return
         }
 
+        tokenParts := strings.Split(token, " ")
+        if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
+            c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid Authorization header format"})
+            c.Abort()
+            return
+        }
+        token = tokenParts[1]
+
         claims, err := ParseToken(token)
         if err != nil {
             c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
@@ -50,15 +63,41 @@ func AuthMiddleware(db *gorm.DB) gin.HandlerFunc {
             return
         }
 
-        userId := uint(claims["user_id"].(float64)) // type assertion from float64 to uint
+        userId, ok := claims["user_id"].(float64) 
+        if !ok {
+            c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token payload"})
+            c.Abort()
+            return
+        }
+
         var user models.User
-        if err := db.First(&user, userId).Error; err != nil {
+        if err := db.First(&user, uint(userId)).Error; err != nil {
             c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
             c.Abort()
             return
         }
 
-        c.Set("user", user) // Attach the user to the context
+        c.Set("user", user)
+        c.Next()
+    }
+}
+
+func IsAdminMiddleware() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        user, exists := c.Get("user")
+        if !exists {
+            c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+            c.Abort()
+            return
+        }
+
+        userModel, ok := user.(models.User)
+        if !ok || userModel.Role != "admin" {
+            c.JSON(http.StatusForbidden, gin.H{"error": "Access denied"})
+            c.Abort()
+            return
+        }
+
         c.Next()
     }
 }

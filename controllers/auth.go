@@ -9,21 +9,35 @@ import (
 	"gorm.io/gorm"
 )
 
-// Register creates a new user
-func Register(c *gin.Context, db *gorm.DB) {
-	var user models.User
-	validator := utils.NewValidator()
 
-	// Validate request data
-	if !validator.ValidateRequest(c, &user) {
+func Register(c *gin.Context, db *gorm.DB) {
+	var request struct {
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required"`
+		Role     string `json:"role"`
+	}
+
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request data"})
 		return
 	}
 
-	// Hash the password securely
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
+	var existingUser models.User
+	if err := db.Where("email = ?", request.Email).First(&existingUser).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email already in use"})
+		return
+	}
+
+	var user models.User
+	user.Email = request.Email
+	user.Role = request.Role
+	if user.Role == "" {
+		user.Role = "user" 
+	}
+
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(request.Password), bcrypt.DefaultCost)
 	user.Password = string(hashedPassword)
 
-	// Save user to database
 	if err := db.Create(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Could not register user"})
 		return
@@ -32,7 +46,8 @@ func Register(c *gin.Context, db *gorm.DB) {
 	c.JSON(http.StatusCreated, gin.H{"message": "User registered successfully"})
 }
 
-// Login authenticates a user and returns a JWT token
+
+
 func Login(c *gin.Context, db *gorm.DB) {
 	var loginData struct {
 		Email    string `json:"email" binding:"required,email"`
@@ -41,7 +56,6 @@ func Login(c *gin.Context, db *gorm.DB) {
 
 	validator := utils.NewValidator()
 
-	// Validate request data
 	if !validator.ValidateRequest(c, &loginData) {
 		return
 	}
