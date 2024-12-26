@@ -10,7 +10,7 @@ import (
     "ecommerce-api/models"
 )
 
-var jwtSecret = []byte("secret-key") 
+var jwtSecret = []byte("your-secret-key") 
 
 func GenerateToken(userId uint, role string) (string, error) {
     claims := jwt.MapClaims{
